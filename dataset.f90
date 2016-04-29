@@ -1,4 +1,9 @@
 module dataset_m
+#ifdef dnad
+    use dnadmod
+#define real type(dual)
+#endif
+
     use math_m
     implicit none
     type dataset_t

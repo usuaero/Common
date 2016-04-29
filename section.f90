@@ -1,4 +1,9 @@
 module section_m
+#ifdef dnad
+    use dnadmod
+#define real type(dual)
+#endif
+
     use airfoil_m
     implicit none
 
