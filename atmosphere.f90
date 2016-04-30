@@ -1,4 +1,9 @@
 module atmosphere_m
+#ifdef dnad
+    use dnadmod
+#define real type(dual)
+#endif
+
     use dataset_m
     implicit none
     type atmosphere_t
@@ -10,6 +15,9 @@ contains
 subroutine atm_create(t)
     type(atmosphere_t) :: t
     real :: temp(36,7)
+    real :: zero
+
+    zero = 0.0
 
     !             alt(m)  geo(m)  T(K)    P(N/m^2)   rho(kg/m^3) mu(kg/m-s) a(m/s)
     temp( 1,:) = [    0.0,    0.0,288.150,1.0133E+05,1.2250E+00,1.7895E-05,340.29]
@@ -48,9 +56,9 @@ subroutine atm_create(t)
     temp(34,:) = [66000.0,65322.0,235.363,9.9405E+00,1.4713E-04,1.5226E-05,307.55]
     temp(35,:) = [68000.0,67280.0,227.529,7.4447E+00,1.1399E-04,1.4808E-05,302.39]
     temp(36,:) = [70000.0,69238.0,219.700,5.5204E+00,8.7534E-05,1.4383E-05,297.14]
-    
+
     call ds_create_from_data(t%properties,36,7,temp(:,:))
-    call ds_cubic_setup(t%properties,1,2,0.0,2,0.0)
+    call ds_cubic_setup(t%properties,1,2,zero,2,zero)
 
 end subroutine atm_create
 
@@ -58,7 +66,7 @@ end subroutine atm_create
 subroutine atm_get_properties(t,altitude,ans)
     type(atmosphere_t) :: t
     real :: altitude, ans(7)
-    
+
     call ds_linear_interpolate(t%properties,altitude,ans(:))
     write(*,*)
     write(*,*) '-------------------------------------------------------------------'
@@ -69,7 +77,7 @@ subroutine atm_get_properties(t,altitude,ans)
     write(*,*) 'Dynamic Viscosity (kg/m-s) = ',ans(6)
     write(*,*) '      Speed of Sound (m/s) = ',ans(7)
     write(*,*) '-------------------------------------------------------------------'
-    
+
 end subroutine atm_get_properties
 
 !-----------------------------------------------------------------------------------------------------------
@@ -77,12 +85,12 @@ real function atm_get_velocity(t,altitude,ReynoldsNumber,length)
     type(atmosphere_t) :: t
     real :: altitude, ReynoldsNumber, length, temp(7)
     real :: rho, mu
-    
+
     call ds_linear_interpolate(t%properties,altitude,temp(:))
     rho = temp(5)
     mu = temp(6)
     atm_get_velocity = ReynoldsNumber*mu/rho/length
-    
+
 end function atm_get_velocity
 
 !-----------------------------------------------------------------------------------------------------------
@@ -90,12 +98,12 @@ real function atm_get_Re(t,altitude,velocity,length)
     type(atmosphere_t) :: t
     real :: altitude, velocity, length, temp(7)
     real :: rho, mu
-    
+
     call ds_linear_interpolate(t%properties,altitude,temp(:))
     rho = temp(5)
     mu = temp(6)
     atm_get_Re = rho*velocity*length/mu
-    
+
 end function atm_get_Re
 
 end module atmosphere_m

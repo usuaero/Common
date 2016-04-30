@@ -1,4 +1,9 @@
 module airfoil_m
+#ifdef dnad
+    use dnadmod
+#define real type(dual)
+#endif
+
     use dataset_m
     implicit none
 

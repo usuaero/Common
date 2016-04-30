@@ -1,6 +1,11 @@
 module math_m
+#ifdef dnad
+    use dnadmod
+#define real type(dual)
+#endif
+
     implicit none
-    real, parameter :: pi = 3.1415926535897932
+    REAL, parameter :: pi = 3.1415926535897932
 contains
 
 subroutine math_plane_normal(p1,p2,p3,ans)
@@ -223,8 +228,8 @@ SUBROUTINE math_AXB_LUD(n,A,B,X)
 !Solves a general [A]*X=B on an nxn matrix
     IMPLICIT NONE
     INTEGER::n,D,info
-    REAL,DIMENSION(n)::B,X
-    REAL,DIMENSION(n,n)::A
+    real,DIMENSION(n)::B,X
+    real,DIMENSION(n,n)::A
     
     INTEGER,allocatable,DIMENSION(:) :: INDX
     
@@ -271,8 +276,8 @@ END SUBROUTINE math_AXB_LUD
  Subroutine math_LUDCMP(A,N,INDX,D,CODE)
  implicit none
  integer, PARAMETER :: NMAX=100
- real, parameter :: TINY=1.5D-16
- REAL  AMAX,DUM, SUM, A(N,N)!,VV(N)
+ REAL, parameter :: TINY=1.5D-16
+ real  AMAX,DUM, SUM, A(N,N)!,VV(N)
  real,allocatable,dimension(:) :: VV
  INTEGER N, CODE, D, INDX(N)
  integer :: I,J,K,IMAX
@@ -354,7 +359,7 @@ END SUBROUTINE math_AXB_LUD
  Subroutine math_LUBKSB(A,N,INDX,B)
  implicit none
  integer :: N
- REAL  SUM, A(N,N),B(N)
+ real  SUM, A(N,N),B(N)
  INTEGER INDX(N)
  integer :: II,I,J,LL
 
