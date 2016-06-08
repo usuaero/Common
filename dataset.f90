@@ -5,22 +5,33 @@ module dataset_m
 #endif
 
     use math_m
+    use myjson_m
     implicit none
     type dataset_t
         character(100) :: filename
         integer :: dim !dimensions of the dataset (3 for xyz points)
         integer :: datasize !length of dataset
-        
+
         real,allocatable,dimension(:,:) :: RawData,Deriv
         real,allocatable,dimension(:) :: Xi ! Xi = array the length of datasize that contains the xi values for each point in the raw data set
         real,allocatable,dimension(:) :: xdata !independent variable array used for spline calcs
     end type
+
+    interface myjson_get
+        module procedure :: myjson_file_get_dataset
+    end interface
+
+    interface json_value_add
+        module procedure :: myjson_value_add_dataset
+    end interface
+
+
 contains
 
 !-----------------------------------------------------------------------------------------------------------
 subroutine ds_allocate(t)
     type(dataset_t) :: t
-    
+
     allocate(t%RawData(t%datasize,t%dim))
     allocate(t%Deriv(t%datasize,t%dim))
     allocate(t%Xi(t%datasize))
@@ -29,7 +40,7 @@ end subroutine ds_allocate
 
 subroutine ds_deallocate(t)
     type(dataset_t) :: t
-    
+
     deallocate(t%RawData)
     deallocate(t%Deriv)
     deallocate(t%Xi)
@@ -41,8 +52,16 @@ subroutine ds_create_from_file(t,filename,dim)
     type(dataset_t) :: t
     character(100) :: filename
     integer :: dim
-    call ds_read_file(t,filename,dim)
-    call ds_calc_Xi(t)
+
+    if(index(filename, '.json') .ne. 0) then
+        !Read as JSON file
+        call ds_read_json(t,filename,dim)
+        call ds_calc_Xi(t)
+    else
+        !Read as text file
+        call ds_read_file(t,filename,dim)
+        call ds_calc_Xi(t)
+    end if
 end subroutine ds_create_from_file
 
 !-----------------------------------------------------------------------------------------------------------
@@ -55,7 +74,7 @@ subroutine ds_create_from_data(t,datasize,dim,rawdata)
     t%dim = dim
 
     call ds_allocate(t)
-    
+
     t%RawData = rawdata
     call ds_calc_Xi(t)
 
@@ -84,7 +103,7 @@ subroutine ds_read_file(t,filename,dim)
     end do
     close(100)
 
-write(*,*) 'data size = ',t%datasize
+    write(*,*) 'data size = ',t%datasize
     call ds_allocate(t)
 
     open(unit = 100, File = filename, action = "read", iostat = ios)
@@ -93,20 +112,147 @@ write(*,*) 'data size = ',t%datasize
         read(100,*,iostat=ios) t%RawData(irow,:)
     end do
     close(100)
-    
+
 end subroutine ds_read_file
+
+!-----------------------------------------------------------------------------------------------------------
+subroutine ds_read_json(t,filename,dim)
+    type(dataset_t), intent(out) :: t
+    character(len=*), intent(in) :: filename
+    integer, intent(in) :: dim
+
+    integer :: icol, irow
+    character(len=2) :: row_name, col_name
+    character(len=7) :: fmt_string
+    type(json_file) :: json    !the JSON structure read from the file
+    type(json_value), pointer :: json_table, json_row
+
+    write(*,*) 'Reading JSON file: ',trim(filename)
+    call json%load_file(filename = filename); call json_check()
+    call myjson_get(json, '', t)
+
+    !Clean up the JSON file
+    call json%destroy()
+
+    write(*,*) 'data size = ',t%datasize
+end subroutine ds_read_json
+
+!-----------------------------------------------------------------------------------------------------------
+subroutine myjson_file_get_dataset(json, name, value)
+    type(json_file) :: json
+    character(len=*), intent(in) :: name
+    type(dataset_t), intent(out) :: value
+
+    real :: temp
+    type(json_value), pointer :: json_table, json_row
+    integer :: irow, icol, ncol
+    character(len=10) :: row_name, col_name
+    character(len=10) :: fmt_string
+
+    ! Get the table object from the JSON file
+    call json%get(name, json_table)
+    if(json_failed()) then
+        write(*,*) 'Error: Unable to read required table: ',name
+        STOP
+    end if
+
+    ! Get the number of rows in the data table
+    value%datasize = json_value_count(json_table)
+
+    ! Get the number of columns (dimensions) in the data table
+    call json%get('r1', json_row)
+    value%dim = json_value_count(json_row)
+
+    ! Allocate dataset memory
+    call ds_allocate(value)
+
+    ! Read the data table and assign to dataset cells
+    do irow = 1, value%datasize
+        write(fmt_string, '(A5,I1,A1)') '(A1,I', int(log10(REAL(irow))) + 1, ')'
+        write(row_name, fmt_string) "r", irow
+        call json_value_get(json_table, row_name, json_row)
+        if(json_failed()) then
+            write(*,*) 'Error: Unable to read row ', irow, 'of table ', name
+            STOP
+        end if
+
+        !Make sure every row has the same number of columns
+        ncol = json_value_count(json_row)
+        if(ncol .ne. value%dim) then
+            write(*,*) 'Error: Row ', irow, ' has ', ncol, ' columns (expected ', value%dim, ')'
+            STOP
+        end if
+        do icol = 1, value%dim
+            write(fmt_string, '(A5,I1,A1)') '(A1,I', int(log10(REAL(icol))) + 1, ')'
+            write(col_name, fmt_string) "c", icol
+            call myjson_get(json_row, col_name, value%RawData(irow, icol))
+        end do
+    end do
+end subroutine myjson_file_get_dataset
+
+!-----------------------------------------------------------------------------------------------------------
+subroutine myjson_value_add_dataset(me, name, val)
+
+    implicit none
+
+    type(json_value), pointer   :: me
+    character(len=*),intent(in) :: name
+    type(dataset_t),intent(in)  :: val
+
+    type(json_value),pointer :: var, row
+    integer :: irow, icol
+    character(len=2) :: row_name, col_name
+    character(len=7) :: fmt_string
+
+    !create the variable as an array:
+    irow = len(name)
+    if(len(name) .eq. 0) then
+        var => me
+    else
+        call json_value_create(var)
+        call to_object(var, name)
+    end if
+
+    !populate the table:
+    do irow=1, val%datasize
+        !format the row name
+        write(fmt_string, '(A5,I1,A1)') '(A1,I', int(log10(REAL(irow))) + 1, ')'
+        write(row_name, fmt_string) 'r', irow
+
+        !create the row
+        call json_value_create(row)
+        call to_object(row, row_name)
+        do icol=1, val%dim
+            !format the column name
+            write(fmt_string, '(A5,I1,A1)') '(A1,I', int(log10(REAL(irow))) + 1, ')'
+            write(col_name, fmt_string) 'c', icol
+
+            !add the column name/value to the row
+            call json_value_add(row, col_name, val%RawData(irow, icol))
+        end do
+
+        !add the row to the dataset
+        call json_value_add(var, row)
+    end do
+
+    !add the dataset
+    if(len(name) .ne. 0) then
+        call json_value_add(me, var)
+        nullify(var)
+    end if
+end subroutine myjson_value_add_dataset
 
 !-----------------------------------------------------------------------------------------------------------
 subroutine ds_calc_Xi(t)
     type(dataset_t) :: t
     integer :: i
-    
+
     !Calculate Xi based on distance between points
     t%Xi(1) = 0
     do i = 2, t%datasize, 1
         t%Xi(i) = t%Xi(i-1) + math_length(t%dim,t%RawData(i,:),t%RawData(i-1,:))
     end do
-    
+
     !default xdata to Xi
     call ds_set_xcol(t,0)
 end subroutine ds_calc_Xi
@@ -135,7 +281,7 @@ subroutine ds_cubic_setup(t,xcol,bc1,bcval1,bc2,bcval2)
     real :: dt1,dt2,Amat(t%datasize,t%datasize), Bvec(t%datasize), x(t%datasize), y(t%datasize,t%dim)
 
     call ds_set_xcol(t,xcol)
-    
+
     n = t%datasize
     x = t%xdata
     y = t%RawData
@@ -161,7 +307,7 @@ subroutine ds_cubic_setup(t,xcol,bc1,bcval1,bc2,bcval2)
             Amat(i,i-1) = dt1; Amat(i,i) = 2.0; Amat(i,i+1) = dt2
             Bvec(i) = 3.0*dt1*(y(i,j) - y(i-1,j))/(x(i) - x(i-1)) + 3.0*dt2*(y(i+1,j) - y(i,j))/(x(i+1) - x(i))
         end do
-        
+
         select case (bc2)
             case (1) !first derivative specified
                 Amat(n,n) = 1.0; Bvec(n) = bcval2
@@ -192,12 +338,12 @@ subroutine ds_weighted_interpolate(t,value,weight,ans)
 
     allocate(ans_linear(t%dim))
     allocate(ans_cubic(t%dim))
-    
+
     call ds_linear_interpolate(t,value,ans_linear)
     call ds_cubic_interpolate(t,value,0,ans_cubic)
-    
+
     ans(:) = ans_linear(:) + weight*(ans_cubic(:) - ans_linear(:))
-    
+
     deallocate(ans_linear)
     deallocate(ans_cubic)
 
@@ -212,7 +358,7 @@ subroutine ds_linear_interpolate(t,value,ans)
     integer :: n,j,i,ival
     real :: zeta, dt
     real :: x(t%datasize), y(t%datasize,t%dim)
-    
+
     n = t%datasize
     x = t%xdata
     y = t%RawData
@@ -230,7 +376,7 @@ subroutine ds_linear_interpolate(t,value,ans)
         end do
     end if
     i = ival
-    
+
     dt = x(i+1) - x(i)
     zeta = (value - x(i))/dt
 
@@ -251,10 +397,10 @@ subroutine ds_cubic_interpolate(t,value,flag,ans)
     real :: zeta, dt
     real, allocatable, dimension(:) :: x
     real, allocatable, dimension(:,:) :: y
-    
+
     allocate(x(t%datasize))
     allocate(y(t%datasize,t%dim))
-    
+
     n = t%datasize
     x = t%xdata
     y = t%RawData
@@ -272,7 +418,7 @@ subroutine ds_cubic_interpolate(t,value,flag,ans)
         end do
     end if
     i = ival
-    
+
     dt = x(i+1) - x(i)
     zeta = (value - x(i))/dt
 
@@ -303,7 +449,7 @@ end subroutine ds_cubic_interpolate
 subroutine ds_print_data(t)
     type(dataset_t) :: t
     integer :: i
-    
+
     write(*,*) '          i             Xi(i)               xdata(i)              RawData(i) ...'
     do i=1,t%datasize
         write(*,*) i,t%Xi(i), t%xdata(i), t%RawData(i,:)
@@ -316,12 +462,12 @@ real function ds_linear_interpolate_col(t,value,value_col,ans_col)
     type(dataset_t) :: t
     real :: value, percent
     integer :: value_col,ans_col,i
-    
+
     real,allocatable,dimension(:) :: col1,col2
 
     allocate(col1(t%datasize))
     allocate(col2(t%datasize))
-    
+
     if(value_col .eq. 0) then
         col1 = t%Xi/t%Xi(t%datasize)
     else
@@ -346,10 +492,10 @@ real function ds_linear_interpolate_col(t,value,value_col,ans_col)
         percent = (value-col1(i-1))/(col1(i) - col1(i-1))
         ds_linear_interpolate_col = col2(i-1) + percent*(col2(i) - col2(i-1))
     end if
-    
+
     deallocate(col1)
     deallocate(col2)
-    
+
 end function ds_linear_interpolate_col
 
 

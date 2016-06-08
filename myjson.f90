@@ -60,10 +60,13 @@ subroutine myjson_value_get_dual(json, name, value, default_value)
     type(dual), intent(out) :: value
     real, intent(in), optional :: default_value
 
+    real :: rvalue
     real, dimension(:), allocatable :: vec
 
-    call json_get(json, name, value%x, json_found)
-    if(json_failed() .or. (.not. json_found)) then
+    call json_get(json, name, rvalue, json_found)
+    if((.not.json_failed()) .and. json_found) then
+        value = rvalue
+    else
         call json_clear_exceptions()
         call json_get(json, name, vec, json_found)
         if(json_found .and. (.not. json_failed())) then
@@ -228,6 +231,7 @@ subroutine json_check()
         STOP
     end if
 end subroutine json_check
+
 !-----------------------------------------------------------------------------------------------------------
 subroutine print_json_error_message()
     implicit none
@@ -247,6 +251,7 @@ subroutine print_json_error_message()
 end subroutine print_json_error_message
 
 #ifdef dnad
+!-----------------------------------------------------------------------------------------------------------
 subroutine myjson_value_add_dual(me, name, val)
 
     implicit none
@@ -268,6 +273,7 @@ subroutine myjson_value_add_dual(me, name, val)
 
 end subroutine myjson_value_add_dual
 
+!-----------------------------------------------------------------------------------------------------------
 subroutine myjson_value_add_dual_vec(me, name, val)
 
     implicit none
@@ -295,7 +301,6 @@ subroutine myjson_value_add_dual_vec(me, name, val)
     nullify(var)
 
 end subroutine myjson_value_add_dual_vec
-!*****************************************************************************************
 
 #endif
 end module myjson_m
