@@ -17,7 +17,7 @@ module airfoil_m
         real :: CLa
         real :: CmL0
         real :: Cma
-        real :: CD0
+        real :: CD0,CD0L,CD0L2
         real :: CLmax
         
         type(dataset_t) :: data2D
@@ -79,11 +79,12 @@ end function af_CL
 !-----------------------------------------------------------------------------------------------------------
 real function af_CD(t,alpha)
     type(airfoil_t),pointer :: t
-    real :: alpha
+    real :: alpha,CL
     if(t%has_data_file==1) then
         af_CD = ds_linear_interpolate_col(t%data2D,180.0/pi*alpha,1,3)
     else
-        af_CD = t%CD0
+        CL = af_CL(t,alpha)
+        af_CD = t%CD0 + t%CD0L*CL + t%CD0L2*CL**2
     end if
 end function af_CD
 
