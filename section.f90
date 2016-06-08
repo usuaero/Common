@@ -17,6 +17,7 @@ module section_m
         real :: temp_P1(3),temp_P2(3) !temporary values used for testing
         real :: chord_c,chord_1,chord_2
         real :: percent_c,percent_1,percent_2
+        real :: percent_af, percent_af_1, percent_af_2
         real :: ds
         real :: ua(3)
         real :: un(3)
@@ -58,7 +59,7 @@ contains
 !-----------------------------------------------------------------------------------------------------------
 real function sec_CLa(t)
     type(section_t),pointer :: t
-    sec_CLa = sec_weight(t, af_CLa(t%af1,t%alpha), af_CLa(t%af2,t%alpha))
+    sec_CLa = sec_af_weight(t, af_CLa(t%af1,t%alpha), af_CLa(t%af2,t%alpha))
 end function sec_CLa
 
 !-----------------------------------------------------------------------------------------------------------
@@ -71,19 +72,25 @@ real function sec_CL(t)
         !etad = m*x + b
         etad = -8.71794871794872E-03*abs(t%control_deflection)*180.0/pi + 1.09589743589744
     end if
-    sec_CL = sec_weight(t, af_CL(t%af1,t%alpha), af_CL(t%af2,t%alpha)) + sec_CLa(t)*t%ef*etad*t%control_deflection !includes flaps
+    sec_CL = sec_af_weight(t, af_CL(t%af1,t%alpha), af_CL(t%af2,t%alpha)) + sec_CLa(t)*t%ef*etad*t%control_deflection !includes flaps
 end function sec_CL
+
+!-----------------------------------------------------------------------------------------------------------
+real function sec_CLmax(t)
+    type(section_t),pointer :: t
+    sec_CLmax = sec_af_weight(t, t%af1%CLmax, t%af2%CLmax)
+end function sec_CLmax
 
 !-----------------------------------------------------------------------------------------------------------
 real function sec_CD(t)
     type(section_t),pointer :: t
-    sec_CD = sec_weight(t, af_CD(t%af1,t%alpha), af_CD(t%af2,t%alpha)) + 0.002*180.0/pi*abs(t%control_deflection) !rough estimate for flaps
+    sec_CD = sec_af_weight(t, af_CD(t%af1,t%alpha), af_CD(t%af2,t%alpha)) + 0.002*180.0/pi*abs(t%control_deflection) !rough estimate for flaps
 end function sec_CD
 
 !-----------------------------------------------------------------------------------------------------------
 real function sec_Cm(t)
     type(section_t),pointer :: t
-    sec_Cm = sec_weight(t, af_Cm(t%af1,t%alpha), af_Cm(t%af2,t%alpha)) + t%Cmdelta*t%control_deflection !includes flaps
+    sec_Cm = sec_af_weight(t, af_Cm(t%af1,t%alpha), af_Cm(t%af2,t%alpha)) + t%Cmdelta*t%control_deflection !includes flaps
 end function sec_Cm
 
 !-----------------------------------------------------------------------------------------------------------
@@ -91,16 +98,15 @@ real function sec_stalled(t)
     type(section_t),pointer :: t
     real :: sCLmax
     sec_stalled = 0
-    sCLmax = sec_weight(t, t%af1%CLmax, t%af2%CLmax)
-    if(sec_CL(t) > sCLmax) sec_stalled = sec_CL(t) - sCLmax
+    if(sec_CL(t) > sec_CLmax(t)) sec_stalled = sec_CL(t) - sec_CLmax(t)
 end function sec_stalled
 
 !-----------------------------------------------------------------------------------------------------------
-real function sec_weight(t,root,tip)
+real function sec_af_weight(t,root,tip)
     type(section_t),pointer :: t
     real :: root,tip
-    sec_weight = root*(1.0 - t%percent_c) + tip*t%percent_c
-end function sec_weight
+    sec_af_weight = root*(1.0 - t%percent_af) + tip*t%percent_af
+end function sec_af_weight
 
 !-----------------------------------------------------------------------------------------------------------
 end module section_m
