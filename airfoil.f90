@@ -24,6 +24,10 @@ module airfoil_m
         type(dataset_t) :: geom
     end type airfoil_t
 
+    type airfoil_p
+        type(airfoil_t),pointer :: p  
+    end type airfoil_p
+
 contains
 
 !-----------------------------------------------------------------------------------------------------------

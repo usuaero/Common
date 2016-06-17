@@ -110,7 +110,7 @@
     character(len=1),parameter :: slash             = achar(47)
     character(len=1),parameter :: backslash         = achar(92)  
        
-    character(len=*),parameter :: real_fmt  = '(ES30.16E3)'      !format for real numbers
+    character(len=*),parameter :: real_fmt  = '(ES30.14E3)'      !format for real numbers
     character(len=*),parameter :: int_fmt   = '(I10)'           !format for integers
 
     ! The types of data:

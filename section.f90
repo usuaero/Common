@@ -17,7 +17,7 @@ module section_m
         real :: temp_P1(3),temp_P2(3) !temporary values used for testing
         real :: chord_c,chord_1,chord_2
         real :: percent_c,percent_1,percent_2
-        real :: percent_af, percent_af_1, percent_af_2
+        real :: af_weight_c, af_weight_1, af_weight_2
         real :: ds
         real :: ua(3)
         real :: un(3)
@@ -34,8 +34,10 @@ module section_m
         real :: v(3) !local velocity
         real :: viom !dynamic pressure scaling value used by Phillips. Don't fully trust. Fix this someday.
 
-        type(airfoil_t),pointer :: af1
-        type(airfoil_t),pointer :: af2
+!        type(airfoil_p),allocatable,dimension(:) :: airfoils
+        type(airfoil_t),pointer :: afc_a,afc_b !airfoils to be linearly interpolated at section control point
+        type(airfoil_t),pointer :: af1_a,af1_b !airfoils to be linearly interpolated at P1
+        type(airfoil_t),pointer :: af2_a,af2_b !airfoils to be linearly interpolated at P2
         
         real :: Gamma
         real :: F(3),M(3) !force and moment about the local quarter-chord divided by dynamic pressure
@@ -59,7 +61,7 @@ contains
 !-----------------------------------------------------------------------------------------------------------
 real function sec_CLa(t)
     type(section_t),pointer :: t
-    sec_CLa = sec_af_weight(t, af_CLa(t%af1,t%alpha), af_CLa(t%af2,t%alpha))
+    sec_CLa = sec_af_weight(t, af_CLa(t%afc_a,t%alpha), af_CLa(t%afc_b,t%alpha))
 end function sec_CLa
 
 !-----------------------------------------------------------------------------------------------------------
@@ -72,25 +74,32 @@ real function sec_CL(t)
         !etad = m*x + b
         etad = -8.71794871794872E-03*abs(t%control_deflection)*180.0/pi + 1.09589743589744
     end if
-    sec_CL = sec_af_weight(t, af_CL(t%af1,t%alpha), af_CL(t%af2,t%alpha)) + sec_CLa(t)*t%ef*etad*t%control_deflection !includes flaps
+
+    sec_CL = sec_af_weight(t, af_CL(t%afc_a,t%alpha), af_CL(t%afc_b,t%alpha)) + sec_CLa(t)*t%ef*etad*t%control_deflection !includes flaps
 end function sec_CL
+
+!-----------------------------------------------------------------------------------------------------------
+real function sec_alpha_L0(t)
+    type(section_t),pointer :: t
+    sec_alpha_L0 = sec_af_weight(t, t%afc_a%aL0, t%afc_b%aL0)
+end function sec_alpha_L0
 
 !-----------------------------------------------------------------------------------------------------------
 real function sec_CLmax(t)
     type(section_t),pointer :: t
-    sec_CLmax = sec_af_weight(t, t%af1%CLmax, t%af2%CLmax)
+    sec_CLmax = sec_af_weight(t, t%afc_a%CLmax, t%afc_b%CLmax)
 end function sec_CLmax
 
 !-----------------------------------------------------------------------------------------------------------
 real function sec_CD(t)
     type(section_t),pointer :: t
-    sec_CD = sec_af_weight(t, af_CD(t%af1,t%alpha), af_CD(t%af2,t%alpha)) + 0.002*180.0/pi*abs(t%control_deflection) !rough estimate for flaps
+    sec_CD = sec_af_weight(t, af_CD(t%afc_a,t%alpha), af_CD(t%afc_b,t%alpha)) + 0.002*180.0/pi*abs(t%control_deflection) !rough estimate for flaps
 end function sec_CD
 
 !-----------------------------------------------------------------------------------------------------------
 real function sec_Cm(t)
     type(section_t),pointer :: t
-    sec_Cm = sec_af_weight(t, af_Cm(t%af1,t%alpha), af_Cm(t%af2,t%alpha)) + t%Cmdelta*t%control_deflection !includes flaps
+    sec_Cm = sec_af_weight(t, af_Cm(t%afc_a,t%alpha), af_Cm(t%afc_b,t%alpha)) + t%Cmdelta*t%control_deflection !includes flaps
 end function sec_Cm
 
 !-----------------------------------------------------------------------------------------------------------
@@ -105,7 +114,7 @@ end function sec_stalled
 real function sec_af_weight(t,root,tip)
     type(section_t),pointer :: t
     real :: root,tip
-    sec_af_weight = root*(1.0 - t%percent_af) + tip*t%percent_af
+    sec_af_weight = root*(1.0 - t%af_weight_c) + tip*t%af_weight_c
 end function sec_af_weight
 
 !-----------------------------------------------------------------------------------------------------------
