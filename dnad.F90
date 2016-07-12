@@ -383,6 +383,11 @@ module dnadmod
        module procedure maxloc_d ! location of max in a dual array
    end interface
 
+   public floor
+   interface floor
+       module procedure floor_d ! integer truncation of a dual number
+   end interface
+
 contains
 
 !*********Begin: functions/subroutines for overloading operators
@@ -571,7 +576,7 @@ contains
 
     end function minus_di
 
-    
+
     !-------------------------------------------------
     ! dual - double
     ! <res, dres> = <u, du> - r = <u - r, du>
@@ -1676,7 +1681,7 @@ contains
 
     end function minval_d
 
-    
+
     !------------------------------------------------------
     !Returns the nearest integer to u%x, ELEMENTAL
     !------------------------------------------------------
@@ -1805,6 +1810,15 @@ contains
         ind = maxloc(array%x)
 
     end function maxloc_d
+
+
+    function floor_d(u) result(res)
+        type(dual), intent(in) :: u
+        integer :: res
+
+        return floor(u%x)
+
+    end function
 
 
     elemental function set_NaN() result(res)
