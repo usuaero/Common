@@ -1816,7 +1816,7 @@ contains
         type(dual), intent(in) :: u
         integer :: res
 
-        return floor(u%x)
+        res = floor(u%x)
 
     end function
 
